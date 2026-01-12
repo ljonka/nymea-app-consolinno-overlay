@@ -92,6 +92,15 @@ MainViewBase {
     }
 
     headerButtons: [{
+            "iconSource": "/icons/chart.svg",
+            "color": Material.foreground,
+            "visible": hemsManager.available,
+            "trigger": function () {
+                pageStack.push("energy/ConsolinnoKpiPage.qml", {
+                                   "hemsManager": hemsManager
+                               })
+            }
+        }, {
             "iconSource": Configuration.infoIcon !== "" ? "/ui/images/"+Configuration.infoIcon : "/icons/info.svg",
             "color": Material.foreground,
             "visible": true,

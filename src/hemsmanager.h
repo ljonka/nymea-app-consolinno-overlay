@@ -96,6 +96,11 @@ public:
     // read only
     Q_INVOKABLE int setChargingSessionConfiguration(const QUuid carThingId, const QUuid evChargerThingid, const QString started_at, const QString finished_at, const float initial_battery_energy, const int duration, const float energy_charged, const float energy_battery, const int battery_level, const QUuid sessionId, const int state, const int timestamp);
     Q_INVOKABLE int setConEMSState(int currentState, int operationMode, int timestamp);
+
+    // Energy Management KPIs
+    Q_INVOKABLE int getKPIs(const QString &resolution, const QString &start, const QString &end);
+    Q_INVOKABLE int getLiveKPIs();
+
 signals:
 
     void engineChanged();
@@ -129,8 +134,16 @@ signals:
     void setDynamicElectricPricingConfigurationReply(int commandId, const QString &error);
     void setBatteryConfigurationReply(int commandId, const QString &error);
 
+    void kpisReceived(const QVariantList &kpis);
+    void liveKPIsReceived(const QVariantMap &liveKpis);
+    void liveKPIsChanged(const QVariantMap &liveKpis);
+    void intervalCompleted(const QVariantMap &params);
+
 private slots:
     Q_INVOKABLE void notificationReceived(const QVariantMap &data);
+
+    Q_INVOKABLE void getKPIsResponse(int commandId, const QVariantMap &data);
+    Q_INVOKABLE void getLiveKPIsResponse(int commandId, const QVariantMap &data);
 
     Q_INVOKABLE void getAvailableUseCasesResponse(int commandId, const QVariantMap &data);
     Q_INVOKABLE void getHousholdPhaseLimitResponse(int commandId, const QVariantMap &data);

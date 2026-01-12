@@ -587,6 +587,36 @@ int HemsManager::setBatteryConfiguration(const QUuid &batteryThingId, const QVar
     return m_engine->jsonRpcClient()->sendCommand("Hems.SetBatteryConfiguration", params, this, "setBatteryConfigurationResponse");
 }
 
+int HemsManager::getKPIs(const QString &resolution, const QString &start, const QString &end)
+{
+    QVariantMap params;
+    params.insert("resolution", resolution);
+    params.insert("start", start);
+    params.insert("end", end);
+    return m_engine->jsonRpcClient()->sendCommand("Hems.GetKPIs", params, this, "getKPIsResponse");
+}
+
+int HemsManager::getLiveKPIs()
+{
+    return m_engine->jsonRpcClient()->sendCommand("Hems.GetLiveKPIs", QVariantMap(), this, "getLiveKPIsResponse");
+}
+
+void HemsManager::getKPIsResponse(int commandId, const QVariantMap &data)
+{
+    Q_UNUSED(commandId);
+    emit kpisReceived(data.value("kpis").toList());
+}
+
+void HemsManager::getLiveKPIsResponse(int commandId, const QVariantMap &data)
+{
+    Q_UNUSED(commandId);
+    if (data.contains("liveKpis")) {
+        emit liveKPIsReceived(data.value("liveKpis").toMap());
+    } else {
+        emit liveKPIsReceived(data);
+    }
+}
+
 // notification Handling -> atm mostly for added, removed, changed
 void HemsManager::notificationReceived(const QVariantMap &data)
 {
@@ -595,7 +625,15 @@ void HemsManager::notificationReceived(const QVariantMap &data)
 
     qCDebug(dcHems()) << "Hems notification received" << notification << params;
 
-    if (notification == "Hems.AvailableUseCasesChanged") {
+    if (notification == "Hems.LiveKPIsChanged") {
+        if (params.contains("liveKpis")) {
+            emit liveKPIsChanged(params.value("liveKpis").toMap());
+        } else {
+            emit liveKPIsChanged(params);
+        }
+    } else if (notification == "Hems.IntervalCompleted") {
+        emit intervalCompleted(params);
+    } else if (notification == "Hems.AvailableUseCasesChanged") {
         updateAvailableUsecases(params.value("availableUseCases").toStringList());
         qCDebug(dcHems()) << "Available use cases changed" << m_availableUseCases;
     } else if (notification == "Hems.HousholdPhaseLimitChanged") {
@@ -1211,4 +1249,3 @@ void HemsManager::updateAvailableUsecases(const QStringList &useCasesList)
         emit availableUseCasesChanged(m_availableUseCases);
     }
 }
-
