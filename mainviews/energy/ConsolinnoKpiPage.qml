@@ -1,21 +1,24 @@
 import QtQuick 2.8
 import QtQuick.Controls 2.1
 import QtQuick.Layouts 1.2
-import QtCharts 2.3
 import Nymea 1.0
 import "qrc:/ui/components/"
 
 Page {
     id: root
     property HemsManager hemsManager
-    property string currentResolution: "now"
-    property var liveKpis: ({})
+    property string currentShortcut: "today"
+    property date customStartDate: new Date()
+    property date customEndDate: new Date()
+    
+    property var summaryKpis: ({})
     property var historicalKpis: []
+    property var latestLiveKpis: ({})
     property bool loading: false
 
     header: NymeaHeader {
         id: nymeaHeader
-        text: qsTr("KPI Overview")
+        text: qsTr("KPI Monitoring")
         backButtonVisible: true
         onBackPressed: pageStack.pop()
     }
@@ -23,61 +26,151 @@ Page {
     Connections {
         target: root.hemsManager
         onLiveKPIsReceived: {
-            root.liveKpis = liveKpis
+            root.latestLiveKpis = liveKpis
+            if (root.currentShortcut === "today") {
+                root.aggregateData()
+            }
             root.loading = false
         }
         onLiveKPIsChanged: {
-            if (root.currentResolution === "now") {
-                root.liveKpis = liveKpis
+            root.latestLiveKpis = liveKpis
+            if (root.currentShortcut === "today") {
+                root.aggregateData()
             }
         }
         onKpisReceived: {
             root.historicalKpis = kpis
+            root.aggregateData()
             root.loading = false
-            root.updateCharts()
         }
         onIntervalCompleted: {
-            if (root.currentResolution !== "now") {
-                root.refreshData()
-            }
+            root.refreshData()
         }
+    }
+
+    function aggregateData() {
+        // Preference: If Today is selected and we have Live KPIs, use them as they are the plugin's most current truth
+        if (root.currentShortcut === "today" && Object.keys(root.latestLiveKpis).length > 0) {
+            root.summaryKpis = root.latestLiveKpis
+            return
+        }
+
+        if (root.historicalKpis.length === 0) {
+            root.summaryKpis = {}
+            return
+        }
+
+        var summary = {
+            gridImportWh: 0,
+            gridExportWh: 0,
+            ownGenerationWh: 0,
+            totalConsumptionWh: 0,
+            selfConsumptionWh: 0,
+            evChargingWh: 0,
+            evSolarWh: 0,
+            batteryChargeWh: 0,
+            batteryDischargeWh: 0,
+            heatPumpWh: 0,
+            gridCostEuro: 0,
+            ownGenerationCostEuro: 0,
+            realCostEuro: 0,
+            emsSavingsEuro: 0,
+            exportRevenueEuro: 0,
+            co2GridG: 0,
+            co2OwnG: 0,
+            co2TotalG: 0,
+            co2SavingsG: 0,
+            maxGridImportW: 0,
+            maxGridExportW: 0,
+            maxProductionW: 0,
+            maxConsumptionW: 0,
+            maxEvPowerW: 0,
+            autarkyRate: 0,
+            selfConsumptionRate: 0,
+            averagePriceEuroKwh: 0
+        }
+
+        for (var i = 0; i < root.historicalKpis.length; i++) {
+            var entry = root.historicalKpis[i]
+            summary.gridImportWh += entry.gridImportWh || 0
+            summary.gridExportWh += entry.gridExportWh || 0
+            summary.ownGenerationWh += entry.ownGenerationWh || 0
+            summary.totalConsumptionWh += entry.totalConsumptionWh || 0
+            summary.selfConsumptionWh += entry.selfConsumptionWh || 0
+            summary.evChargingWh += entry.evChargingWh || 0
+            summary.evSolarWh += entry.evSolarWh || 0
+            summary.batteryChargeWh += entry.batteryChargeWh || 0
+            summary.batteryDischargeWh += entry.batteryDischargeWh || 0
+            summary.heatPumpWh += entry.heatPumpWh || 0
+            
+            summary.gridCostEuro += entry.gridCostEuro || 0
+            summary.ownGenerationCostEuro += entry.ownGenerationCostEuro || 0
+            summary.realCostEuro += entry.realCostEuro || 0
+            summary.emsSavingsEuro += entry.emsSavingsEuro || 0
+            summary.exportRevenueEuro += entry.exportRevenueEuro || 0
+            
+            summary.co2GridG += entry.co2GridG || 0
+            summary.co2OwnG += entry.co2OwnG || 0
+            summary.co2TotalG += entry.co2TotalG || 0
+            summary.co2SavingsG += entry.co2SavingsG || 0
+            
+            summary.maxGridImportW = Math.max(summary.maxGridImportW, entry.maxGridImportW || 0)
+            summary.maxGridExportW = Math.max(summary.maxGridExportW, entry.maxGridExportW || 0)
+            summary.maxProductionW = Math.max(summary.maxProductionW, entry.maxProductionW || 0)
+            summary.maxConsumptionW = Math.max(summary.maxConsumptionW, entry.maxConsumptionW || 0)
+            summary.maxEvPowerW = Math.max(summary.maxEvPowerW, entry.maxEvPowerW || 0)
+        }
+
+        // Recalculate rates for the whole period
+        if (summary.totalConsumptionWh > 0) {
+            summary.autarkyRate = summary.selfConsumptionWh / summary.totalConsumptionWh
+            summary.averagePriceEuroKwh = summary.realCostEuro / (summary.totalConsumptionWh / 1000.0)
+        }
+        if (summary.ownGenerationWh > 0) {
+            summary.selfConsumptionRate = summary.selfConsumptionWh / summary.ownGenerationWh
+        }
+
+        root.summaryKpis = summary
     }
 
     function refreshData() {
         if (!root.hemsManager) return
         
         root.loading = true
-        if (root.currentResolution === "now") {
+        root.summaryKpis = ({})
+        root.historicalKpis = []
+        
+        var start = new Date()
+        var end = new Date()
+        var resolution = "15min" 
+
+        if (root.currentShortcut === "today") {
             root.hemsManager.getLiveKPIs()
-        } else {
-            var end = new Date()
-            var start = new Date()
-            
-            if (root.currentResolution === "15m") start.setHours(start.getHours() - 1)
-            else if (root.currentResolution === "1h") start.setHours(start.getHours() - 6)
-            else if (root.currentResolution === "day") start.setDate(start.getDate() - 1)
-            else if (root.currentResolution === "week") start.setDate(start.getDate() - 7)
-            else if (root.currentResolution === "month") start.setMonth(start.getMonth() - 1)
-            else if (root.currentResolution === "year") start.setFullYear(start.getFullYear() - 1)
-            
-            root.hemsManager.getKPIs(root.currentResolution, start.toISOString(), end.toISOString())
+            // Backend segments for Today (fallback/sync)
+            start.setHours(0, 0, 0, 0)
+        } else if (root.currentShortcut === "yesterday") {
+            start.setDate(start.getDate() - 1)
+            start.setHours(0, 0, 0, 0)
+            end = new Date(start)
+            end.setHours(23, 59, 59, 999)
+        } else if (root.currentShortcut === "week") {
+            var day = start.getDay() || 7
+            start.setDate(start.getDate() - (day - 1))
+            start.setHours(0, 0, 0, 0)
+        } else if (root.currentShortcut === "month") {
+            start.setDate(1)
+            start.setHours(0, 0, 0, 0)
+        } else if (root.currentShortcut === "selection") {
+            start = new Date(root.customStartDate)
+            start.setHours(0, 0, 0, 0)
+            end = new Date(root.customEndDate)
+            end.setHours(23, 59, 59, 999)
         }
-    }
-
-    function updateCharts() {
-        energyBarSet.values = []
-        productionBarSet.values = []
-        historicalAxisX.categories = []
-        historicalFinancialAxisX.categories = []
-
-        for (var i = 0; i < root.historicalKpis.length; i++) {
-            var entry = root.historicalKpis[i]
-            energyBarSet.append(entry.gridImportWh || 0)
-            productionBarSet.append(entry.pvProductionWh || 0)
-            var timeStr = Qt.formatDateTime(new Date(entry.timestamp), "HH:mm")
-            historicalAxisX.append(timeStr)
-            historicalFinancialAxisX.append(timeStr)
-        }
+        
+        // Use local ISO format without timezone offset to match backend's device-local expectation
+        var startStr = Qt.formatDateTime(start, "yyyy-MM-ddTHH:mm:ss")
+        var endStr = Qt.formatDateTime(end, "yyyy-MM-ddTHH:mm:ss")
+        root.hemsManager.getKPIs(resolution, startStr, endStr)
     }
 
     Component.onCompleted: refreshData()
@@ -86,179 +179,198 @@ Page {
         anchors.fill: parent
         contentHeight: contentColumn.height
         clip: true
+        opacity: root.loading ? 0.5 : 1.0
+        Behavior on opacity { NumberAnimation { duration: 250 } }
 
         ColumnLayout {
             id: contentColumn
             width: parent.width
             spacing: 20
+            Layout.topMargin: 10
+            Layout.bottomMargin: 20
 
             ConsolinnoSelectionTabs {
                 id: selectionTabs
                 Layout.fillWidth: true
                 Layout.margins: 10
                 model: [
-                    qsTr("Now"),
-                    qsTr("15m"),
-                    qsTr("1h"),
-                    qsTr("Day"),
-                    qsTr("Week"),
-                    qsTr("Month"),
-                    qsTr("Year")
+                    qsTr("Today"),
+                    qsTr("Yesterday"),
+                    qsTr("This Week"),
+                    qsTr("This Month"),
+                    qsTr("Selection")
                 ]
-                property var values: ["now", "15m", "1h", "day", "week", "month", "year"]
+                currentIndex: 0
+                property var values: ["today", "yesterday", "week", "month", "selection"]
                 onTabSelected: {
-                    root.currentResolution = values[index]
+                    root.currentShortcut = values[index]
                     root.refreshData()
                 }
             }
 
-            // --- NOW VIEW (Cards) ---
-            ColumnLayout {
-                visible: root.currentResolution === "now"
+            // --- CUSTOM SELECTION CONTROLS ---
+            RowLayout {
+                visible: root.currentShortcut === "selection"
                 Layout.fillWidth: true
-                spacing: 15
-
-                Label {
-                    text: qsTr("Live KPIs")
-                    font.pixelSize: 20
-                    font.bold: true
-                    color: Style.consolinnoDark
-                    Layout.alignment: Qt.AlignHCenter
-                }
-
-                Flow {
-                    Layout.fillWidth: true
-                    Layout.leftMargin: 10
-                    Layout.rightMargin: 10
-                    spacing: 10
-                    
-                    Repeater {
-                        model: [
-                            { label: qsTr("Grid Import"), value: (root.liveKpis.gridImportWh || 0).toFixed(1), unit: "Wh" },
-                            { label: qsTr("Grid Export"), value: (root.liveKpis.gridExportWh || 0).toFixed(1), unit: "Wh" },
-                            { label: qsTr("PV Production"), value: (root.liveKpis.pvProductionWh || 0).toFixed(1), unit: "Wh" },
-                            { label: qsTr("Own Gen."), value: (root.liveKpis.ownGenerationWh || 0).toFixed(1), unit: "Wh" },
-                            { label: qsTr("Self-Cons."), value: (root.liveKpis.selfConsumptionRate || 0).toFixed(1), unit: "%" },
-                            { label: qsTr("Autarky"), value: (root.liveKpis.autarkyRate || 0).toFixed(1), unit: "%" },
-                            { label: qsTr("Heat Pump"), value: (root.liveKpis.heatPumpWh || 0).toFixed(1), unit: "Wh" },
-                            { label: qsTr("EV Charging"), value: (root.liveKpis.evChargingWh || 0).toFixed(1), unit: "Wh" },
-                            { label: qsTr("Bat. Charge"), value: (root.liveKpis.batteryChargeWh || 0).toFixed(1), unit: "Wh" },
-                            { label: qsTr("Bat. Disch."), value: (root.liveKpis.batteryDischargeWh || 0).toFixed(1), unit: "Wh" },
-                            { label: qsTr("Max Power"), value: (root.liveKpis.maxPowerW || 0).toFixed(0), unit: "W" },
-                            { label: qsTr("Min Power"), value: (root.liveKpis.minPowerW || 0).toFixed(0), unit: "W" },
-                            { label: qsTr("Max Import"), value: (root.liveKpis.maxGridImportW || 0).toFixed(0), unit: "W" },
-                            { label: qsTr("Max Export"), value: (root.liveKpis.maxGridExportW || 0).toFixed(0), unit: "W" },
-                            { label: qsTr("Wind Prod."), value: (root.liveKpis.windProductionWh || 0).toFixed(1), unit: "Wh" },
-                            { label: qsTr("CHP Prod."), value: (root.liveKpis.chpProductionWh || 0).toFixed(1), unit: "Wh" },
-                            { label: qsTr("Direct Cons."), value: (root.liveKpis.pvDirectConsumptionWh || 0).toFixed(1), unit: "Wh" },
-                            { label: qsTr("EV Solar"), value: (root.liveKpis.evSolarWh || 0).toFixed(1), unit: "Wh" },
-                            { label: qsTr("Avg Price"), value: (root.liveKpis.averagePrice || 0).toFixed(3), unit: "€" },
-                            { label: qsTr("Grid Cost"), value: (root.liveKpis.gridCost || 0).toFixed(2), unit: "€" },
-                            { label: qsTr("Revenue"), value: (root.liveKpis.exportRevenue || 0).toFixed(2), unit: "€" },
-                            { label: qsTr("Savings"), value: (root.liveKpis.pvSavings || 0).toFixed(2), unit: "€" },
-                            { label: qsTr("LCOE Cost"), value: (root.liveKpis.lcoeCost || 0).toFixed(2), unit: "€" }
-                        ]
-                        
-                        delegate: Rectangle {
-                            width: (contentColumn.width - 30) / 2
-                            height: 80
-                            color: Style.backgroundColor
-                            radius: 8
-                            border.color: Style.consolinnoLight
-                            border.width: 1
-                            
-                            ColumnLayout {
-                                anchors.centerIn: parent
-                                width: parent.width - 20
-                                Label {
-                                    Layout.fillWidth: true
-                                    text: modelData.label
-                                    font.pixelSize: 10
-                                    color: Style.subTextColor
-                                    horizontalAlignment: Text.AlignHCenter
-                                    elide: Text.ElideRight
-                                }
-                                Label {
-                                    Layout.fillWidth: true
-                                    text: modelData.value + " " + modelData.unit
-                                    font.pixelSize: 16
-                                    font.bold: true
-                                    color: Style.consolinnoDark
-                                    horizontalAlignment: Text.AlignHCenter
-                                    elide: Text.ElideRight
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // --- HISTORY VIEW (Charts) ---
-            ColumnLayout {
-                visible: root.currentResolution !== "now"
-                Layout.fillWidth: true
-                spacing: 15
-
-                Label {
-                    text: qsTr("Historical Trends")
-                    font.pixelSize: 20
-                    font.bold: true
-                    color: Style.consolinnoDark
-                    Layout.alignment: Qt.AlignHCenter
-                }
-
-                ChartView {
-                    id: historyChart
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 300
-                    antialiasing: true
-                    legend.alignment: Qt.AlignBottom
-                    legend.labelColor: Style.foregroundColor
-                    backgroundColor: "transparent"
-
-                    BarSeries {
-                        id: energyBarSeries
-                        axisX: BarCategoryAxis { id: historicalAxisX }
-                        BarSet { id: energyBarSet; label: qsTr("Grid Import (Wh)") }
-                        BarSet { id: productionBarSet; label: qsTr("PV production (Wh)") }
-                    }
-                }
+                Layout.leftMargin: 20
+                Layout.rightMargin: 20
+                spacing: 10
                 
-                // second chart for financial data
-                ChartView {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 300
-                    antialiasing: true
-                    legend.alignment: Qt.AlignBottom
-                    legend.labelColor: Style.foregroundColor
-                    backgroundColor: "transparent"
-                    
-                    BarSeries {
-                        axisX: BarCategoryAxis { id: historicalFinancialAxisX }
-                        BarSet { 
-                            label: qsTr("Grid Cost (€)")
-                            values: {
-                                var v = []
-                                for(var i=0; i<root.historicalKpis.length; i++) v.push(root.historicalKpis[i].gridCost || 0)
-                                return v
+                ColumnLayout {
+                    Label { text: qsTr("Start Date"); font.pixelSize: 12; color: Style.subTextColor }
+                    ConsolinnoTextField {
+                        id: startField
+                        placeholderText: "YYYY-MM-DD"
+                        text: Qt.formatDate(root.customStartDate, "yyyy-MM-dd")
+                        onEditingFinished: {
+                            var cleaned = text.split("-").map(function(p, i) {
+                                if (i > 0 && p.length === 1) return "0" + p
+                                return p
+                            }).join("-")
+                            var d = Date.fromLocaleDateString(Qt.locale(), cleaned, "yyyy-MM-dd")
+                            if (!isNaN(d.getTime())) {
+                                root.customStartDate = d
+                                root.refreshData()
                             }
                         }
-                        BarSet { 
-                            label: qsTr("Revenue (€)")
-                            values: {
-                                var v = []
-                                for(var i=0; i<root.historicalKpis.length; i++) v.push(root.historicalKpis[i].exportRevenue || 0)
-                                return v
+                    }
+                }
+                ColumnLayout {
+                    Label { text: qsTr("End Date"); font.pixelSize: 12; color: Style.subTextColor }
+                    ConsolinnoTextField {
+                        id: endField
+                        placeholderText: "YYYY-MM-DD"
+                        text: Qt.formatDate(root.customEndDate, "yyyy-MM-dd")
+                        onEditingFinished: {
+                            var cleaned = text.split("-").map(function(p, i) {
+                                if (i > 0 && p.length === 1) return "0" + p
+                                return p
+                            }).join("-")
+                            var d = Date.fromLocaleDateString(Qt.locale(), cleaned, "yyyy-MM-dd")
+                            if (!isNaN(d.getTime())) {
+                                d.setHours(23, 59, 59, 999)
+                                root.customEndDate = d
+                                root.refreshData()
                             }
                         }
                     }
                 }
             }
 
-            BusyIndicator {
-                Layout.alignment: Qt.AlignHCenter
-                running: root.loading
+            // --- SECTOR REPEATER ---
+            Repeater {
+                model: [
+                    {
+                        title: qsTr("Energy (kWh)"),
+                        kpis: [
+                            { label: qsTr("Grid Import"), value: (root.summaryKpis.gridImportWh / 1000 || 0).toFixed(2) },
+                            { label: qsTr("Grid Export"), value: (root.summaryKpis.gridExportWh / 1000 || 0).toFixed(2) },
+                            { label: qsTr("Generation"), value: (root.summaryKpis.ownGenerationWh / 1000 || 0).toFixed(2) },
+                            { label: qsTr("Consumption"), value: (root.summaryKpis.totalConsumptionWh / 1000 || 0).toFixed(2) },
+                            { label: qsTr("Self-consumption"), value: (root.summaryKpis.selfConsumptionWh / 1000 || 0).toFixed(2) },
+                            { label: qsTr("EV Charging"), value: (root.summaryKpis.evChargingWh / 1000 || 0).toFixed(2) },
+                            { label: qsTr("Solar EV Share"), value: (root.summaryKpis.evSolarWh / 1000 || 0).toFixed(2) },
+                            { label: qsTr("Battery Charge"), value: (root.summaryKpis.batteryChargeWh / 1000 || 0).toFixed(2) },
+                            { label: qsTr("Battery Discharge"), value: (root.summaryKpis.batteryDischargeWh / 1000 || 0).toFixed(2) }
+                        ]
+                    },
+                    {
+                        title: qsTr("Power Peaks (kW)"),
+                        kpis: [
+                            { label: qsTr("Pmax Import"), value: (root.summaryKpis.maxGridImportW / 1000 || 0).toFixed(2) },
+                            { label: qsTr("Pmax Export"), value: (root.summaryKpis.maxGridExportW / 1000 || 0).toFixed(2) },
+                            { label: qsTr("Pmax Gen"), value: (root.summaryKpis.maxProductionW / 1000 || 0).toFixed(2) },
+                            { label: qsTr("Pmax Cons"), value: (root.summaryKpis.maxConsumptionW / 1000 || 0).toFixed(2) },
+                            { label: qsTr("Pmax E-Mobility"), value: (root.summaryKpis.maxEvPowerW / 1000 || 0).toFixed(2) }
+                        ]
+                    },
+                    {
+                        title: qsTr("Economics (€)"),
+                        kpis: [
+                            { label: qsTr("Grid Cost"), value: (root.summaryKpis.gridCostEuro || 0).toFixed(2) },
+                            { label: qsTr("Own Gen. Cost"), value: (root.summaryKpis.ownGenerationCostEuro || 0).toFixed(2) },
+                            { label: qsTr("Real Cost"), value: (root.summaryKpis.realCostEuro || 0).toFixed(2) },
+                            { label: qsTr("EMS Savings"), value: (root.summaryKpis.emsSavingsEuro || 0).toFixed(2) },
+                            { label: qsTr("Avg Price"), value: (root.summaryKpis.averagePriceEuroKwh || 0).toFixed(2), unit: "/kWh" }
+                        ]
+                    },
+                    {
+                        title: qsTr("Sustainability (kg CO2)"),
+                        kpis: [
+                            { label: qsTr("Grid Emission"), value: (root.summaryKpis.co2GridG / 1000 || 0).toFixed(2) },
+                            { label: qsTr("Own Gen (CO2)"), value: (root.summaryKpis.co2OwnG / 1000 || 0).toFixed(2) },
+                            { label: qsTr("Total (CO2)"), value: (root.summaryKpis.co2TotalG / 1000 || 0).toFixed(2) },
+                            { label: qsTr("CO2 Savings"), value: (root.summaryKpis.co2SavingsG / 1000 || 0).toFixed(2) }
+                        ]
+                    },
+                    {
+                        title: qsTr("Efficiency (%)"),
+                        kpis: [
+                            { label: qsTr("Autarky Degree"), value: ((root.summaryKpis.autarkyRate || 0) * 100).toFixed(1) },
+                            { label: qsTr("Self-cons. Rate"), value: ((root.summaryKpis.selfConsumptionRate || 0) * 100).toFixed(1) }
+                        ]
+                    }
+                ]
+                delegate: ColumnLayout {
+                    spacing: 10
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 20
+                    Layout.rightMargin: 20
+
+                    Label {
+                        text: modelData.title
+                        font.pixelSize: 18
+                        font.bold: true
+                        color: Style.consolinnoDark
+                    }
+
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        Repeater {
+                            model: modelData.kpis
+                            delegate: Rectangle {
+                                width: (contentColumn.width - 50) / 2
+                                height: 75
+                                color: Style.backgroundColor
+                                radius: 8
+                                border.color: Style.consolinnoLight
+                                border.width: 1
+
+                                ColumnLayout {
+                                    anchors.centerIn: parent
+                                    width: parent.width - 16
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: modelData.label
+                                        font.pixelSize: 10
+                                        color: Style.subTextColor
+                                        horizontalAlignment: Text.AlignHCenter
+                                        elide: Text.ElideRight
+                                    }
+                                    Label {
+                                        Layout.fillWidth: true
+                                        text: modelData.value + (modelData.unit || "")
+                                        font.pixelSize: 15
+                                        font.bold: true
+                                        color: Style.consolinnoDark
+                                        horizontalAlignment: Text.AlignHCenter
+                                        elide: Text.ElideRight
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
+
         }
+    }
+
+    BusyIndicator {
+        anchors.centerIn: parent
+        running: root.loading
+        visible: running
+        z: 100
     }
 }
