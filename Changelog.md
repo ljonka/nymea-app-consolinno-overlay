@@ -1,6 +1,12 @@
+## [1.6.0]
+### Changed
+- Updated KPI view to support new heatpump optimization metrics
+- Changed heatpump KPI fields from intervention count to optimization effectiveness tracking
+- Now displays total interventions, optimized interventions, and optimization rate
+
 ## [1.5.0]
 ### Added
-- Improved interaction with edge backend 
+- Improved interaction with edge backend
 
 ## [1.4.0]
 ### Added
@@ -49,4 +55,3 @@
 ### Fixed
 - Added missing 'west' option to PV aligment dropdown
 - Fixed translations in Info screens for charging
-

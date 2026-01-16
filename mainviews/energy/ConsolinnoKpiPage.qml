@@ -88,8 +88,9 @@ Page {
             autarkyRate: 0,
             selfConsumptionRate: 0,
             averagePriceEuroKwh: 0,
-            hpInterventionCount: 0,
-            hpInterventionRate: 0,
+            hpTotalInterventionCount: 0,
+            hpOptimizedInterventionCount: 0,
+            hpOptimizedInterventionRate: 0,
             evLowPriceWh: 0,
             evLowPriceRate: 0
         }
@@ -125,7 +126,8 @@ Page {
             summary.maxEvPowerW = Math.max(summary.maxEvPowerW, entry.maxEvPowerW || 0)
             
             // New KPIs: Heat Pump Intervention & EV Low-Price
-            summary.hpInterventionCount += entry.hpInterventionCount || 0
+            summary.hpTotalInterventionCount += entry.hpTotalInterventionCount || 0
+            summary.hpOptimizedInterventionCount += entry.hpOptimizedInterventionCount || 0
             summary.evLowPriceWh += entry.evLowPriceWh || 0
         }
 
@@ -139,10 +141,9 @@ Page {
         }
         
         // Calculate new KPI rates
-        // Heat Pump Intervention Rate: Use the rate from the last entry or calculate based on count
-        if (root.historicalKpis.length > 0) {
-            var lastEntry = root.historicalKpis[root.historicalKpis.length - 1]
-            summary.hpInterventionRate = lastEntry.hpInterventionRate || 0
+        // Heat Pump Optimization Rate: Recalculate based on total counts
+        if (summary.hpTotalInterventionCount > 0) {
+            summary.hpOptimizedInterventionRate = summary.hpOptimizedInterventionCount / summary.hpTotalInterventionCount
         }
         
         // EV Low-Price Rate: Recalculate based on total evLowPriceWh / evChargingWh
@@ -333,8 +334,9 @@ Page {
                     {
                         title: qsTr("HEMS Optimization"),
                         kpis: [
-                            { label: qsTr("HP Intervention Rate"), value: ((root.summaryKpis.hpInterventionRate || 0) * 100).toFixed(1), unit: "%" },
-                            { label: qsTr("HP Interventions"), value: (root.summaryKpis.hpInterventionCount || 0).toString() },
+                            { label: qsTr("HP Optimization Rate"), value: ((root.summaryKpis.hpOptimizedInterventionRate || 0) * 100).toFixed(1), unit: "%" },
+                            { label: qsTr("HP Total Interventions"), value: (root.summaryKpis.hpTotalInterventionCount || 0).toString() },
+                            { label: qsTr("HP Optimized Interventions"), value: (root.summaryKpis.hpOptimizedInterventionCount || 0).toString() },
                             { label: qsTr("EV Low-Price Rate"), value: ((root.summaryKpis.evLowPriceRate || 0) * 100).toFixed(1), unit: "%" },
                             { label: qsTr("EV Low-Price Energy"), value: (root.summaryKpis.evLowPriceWh / 1000 || 0).toFixed(2), unit: " kWh" }
                         ]
