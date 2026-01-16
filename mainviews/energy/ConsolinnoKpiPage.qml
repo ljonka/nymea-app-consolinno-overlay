@@ -15,6 +15,70 @@ Page {
     property var historicalKpis: []
     property var latestLiveKpis: ({})
     property bool loading: false
+    
+    // Static KPI structure - never changes, preventing UI rebuilds
+    property var kpiStructure: [
+        {
+            title: qsTr("Energy (kWh)"),
+            kpis: [
+                { label: qsTr("Grid Import"), key: "gridImportWh", factor: 0.001, precision: 2, unit: "" },
+                { label: qsTr("Grid Export"), key: "gridExportWh", factor: 0.001, precision: 2, unit: "" },
+                { label: qsTr("Generation"), key: "ownGenerationWh", factor: 0.001, precision: 2, unit: "" },
+                { label: qsTr("Consumption"), key: "totalConsumptionWh", factor: 0.001, precision: 2, unit: "" },
+                { label: qsTr("Self-consumption"), key: "selfConsumptionWh", factor: 0.001, precision: 2, unit: "" },
+                { label: qsTr("EV Charging"), key: "evChargingWh", factor: 0.001, precision: 2, unit: "" },
+                { label: qsTr("Solar EV Share"), key: "evSolarWh", factor: 0.001, precision: 2, unit: "" },
+                { label: qsTr("Battery Charge"), key: "batteryChargeWh", factor: 0.001, precision: 2, unit: "" },
+                { label: qsTr("Battery Discharge"), key: "batteryDischargeWh", factor: 0.001, precision: 2, unit: "" }
+            ]
+        },
+        {
+            title: qsTr("Power Peaks (kW)"),
+            kpis: [
+                { label: qsTr("Pmax Import"), key: "maxGridImportW", factor: 0.001, precision: 2, unit: "" },
+                { label: qsTr("Pmax Export"), key: "maxGridExportW", factor: 0.001, precision: 2, unit: "" },
+                { label: qsTr("Pmax Gen"), key: "maxProductionW", factor: 0.001, precision: 2, unit: "" },
+                { label: qsTr("Pmax Cons"), key: "maxConsumptionW", factor: 0.001, precision: 2, unit: "" },
+                { label: qsTr("Pmax E-Mobility"), key: "maxEvPowerW", factor: 0.001, precision: 2, unit: "" }
+            ]
+        },
+        {
+            title: qsTr("Economics (€)"),
+            kpis: [
+                { label: qsTr("Grid Cost"), key: "gridCostEuro", factor: 1, precision: 2, unit: "" },
+                { label: qsTr("Own Gen. Cost"), key: "ownGenerationCostEuro", factor: 1, precision: 2, unit: "" },
+                { label: qsTr("Real Cost"), key: "realCostEuro", factor: 1, precision: 2, unit: "" },
+                { label: qsTr("EMS Savings"), key: "emsSavingsEuro", factor: 1, precision: 2, unit: "" },
+                { label: qsTr("Avg Price"), key: "averagePriceEuroKwh", factor: 1, precision: 2, unit: "/kWh" }
+            ]
+        },
+        {
+            title: qsTr("Sustainability (kg CO2)"),
+            kpis: [
+                { label: qsTr("Grid Emission"), key: "co2GridG", factor: 0.001, precision: 2, unit: "" },
+                { label: qsTr("Own Gen (CO2)"), key: "co2OwnG", factor: 0.001, precision: 2, unit: "" },
+                { label: qsTr("Total (CO2)"), key: "co2TotalG", factor: 0.001, precision: 2, unit: "" },
+                { label: qsTr("CO2 Savings"), key: "co2SavingsG", factor: 0.001, precision: 2, unit: "" }
+            ]
+        },
+        {
+            title: qsTr("Efficiency (%)"),
+            kpis: [
+                { label: qsTr("Autarky Degree"), key: "autarkyRate", factor: 100, precision: 1, unit: "" },
+                { label: qsTr("Self-cons. Rate"), key: "selfConsumptionRate", factor: 100, precision: 1, unit: "" }
+            ]
+        },
+        {
+            title: qsTr("HEMS Optimization"),
+            kpis: [
+                { label: qsTr("HP Optimization Rate"), key: "hpOptimizedInterventionRate", factor: 100, precision: 1, unit: "%" },
+                { label: qsTr("HP Total Interventions"), key: "hpTotalInterventionCount", factor: 1, precision: 0, unit: "" },
+                { label: qsTr("HP Optimized Interventions"), key: "hpOptimizedInterventionCount", factor: 1, precision: 0, unit: "" },
+                { label: qsTr("EV Low-Price Rate"), key: "evLowPriceRate", factor: 100, precision: 1, unit: "%" },
+                { label: qsTr("EV Low-Price Energy"), key: "evLowPriceWh", factor: 0.001, precision: 2, unit: " kWh" }
+            ]
+        }
+    ]
 
     header: NymeaHeader {
         id: nymeaHeader
@@ -158,12 +222,13 @@ Page {
         if (!root.hemsManager) return
         
         root.loading = true
-        root.summaryKpis = ({})
-        root.historicalKpis = []
+        // Keep old data visible until new data arrives to prevent layout jumps
+        // root.summaryKpis = ({})
+        // root.historicalKpis = []
         
         var start = new Date()
         var end = new Date()
-        var resolution = "15min" 
+        var resolution = "15min"
 
         if (root.currentShortcut === "today") {
             root.hemsManager.getLiveKPIs()
@@ -197,6 +262,7 @@ Page {
     Component.onCompleted: refreshData()
 
     Flickable {
+        id: flickable
         anchors.fill: parent
         contentHeight: contentColumn.height
         clip: true
@@ -280,68 +346,7 @@ Page {
 
             // --- SECTOR REPEATER ---
             Repeater {
-                model: [
-                    {
-                        title: qsTr("Energy (kWh)"),
-                        kpis: [
-                            { label: qsTr("Grid Import"), value: (root.summaryKpis.gridImportWh / 1000 || 0).toFixed(2) },
-                            { label: qsTr("Grid Export"), value: (root.summaryKpis.gridExportWh / 1000 || 0).toFixed(2) },
-                            { label: qsTr("Generation"), value: (root.summaryKpis.ownGenerationWh / 1000 || 0).toFixed(2) },
-                            { label: qsTr("Consumption"), value: (root.summaryKpis.totalConsumptionWh / 1000 || 0).toFixed(2) },
-                            { label: qsTr("Self-consumption"), value: (root.summaryKpis.selfConsumptionWh / 1000 || 0).toFixed(2) },
-                            { label: qsTr("EV Charging"), value: (root.summaryKpis.evChargingWh / 1000 || 0).toFixed(2) },
-                            { label: qsTr("Solar EV Share"), value: (root.summaryKpis.evSolarWh / 1000 || 0).toFixed(2) },
-                            { label: qsTr("Battery Charge"), value: (root.summaryKpis.batteryChargeWh / 1000 || 0).toFixed(2) },
-                            { label: qsTr("Battery Discharge"), value: (root.summaryKpis.batteryDischargeWh / 1000 || 0).toFixed(2) }
-                        ]
-                    },
-                    {
-                        title: qsTr("Power Peaks (kW)"),
-                        kpis: [
-                            { label: qsTr("Pmax Import"), value: (root.summaryKpis.maxGridImportW / 1000 || 0).toFixed(2) },
-                            { label: qsTr("Pmax Export"), value: (root.summaryKpis.maxGridExportW / 1000 || 0).toFixed(2) },
-                            { label: qsTr("Pmax Gen"), value: (root.summaryKpis.maxProductionW / 1000 || 0).toFixed(2) },
-                            { label: qsTr("Pmax Cons"), value: (root.summaryKpis.maxConsumptionW / 1000 || 0).toFixed(2) },
-                            { label: qsTr("Pmax E-Mobility"), value: (root.summaryKpis.maxEvPowerW / 1000 || 0).toFixed(2) }
-                        ]
-                    },
-                    {
-                        title: qsTr("Economics (€)"),
-                        kpis: [
-                            { label: qsTr("Grid Cost"), value: (root.summaryKpis.gridCostEuro || 0).toFixed(2) },
-                            { label: qsTr("Own Gen. Cost"), value: (root.summaryKpis.ownGenerationCostEuro || 0).toFixed(2) },
-                            { label: qsTr("Real Cost"), value: (root.summaryKpis.realCostEuro || 0).toFixed(2) },
-                            { label: qsTr("EMS Savings"), value: (root.summaryKpis.emsSavingsEuro || 0).toFixed(2) },
-                            { label: qsTr("Avg Price"), value: (root.summaryKpis.averagePriceEuroKwh || 0).toFixed(2), unit: "/kWh" }
-                        ]
-                    },
-                    {
-                        title: qsTr("Sustainability (kg CO2)"),
-                        kpis: [
-                            { label: qsTr("Grid Emission"), value: (root.summaryKpis.co2GridG / 1000 || 0).toFixed(2) },
-                            { label: qsTr("Own Gen (CO2)"), value: (root.summaryKpis.co2OwnG / 1000 || 0).toFixed(2) },
-                            { label: qsTr("Total (CO2)"), value: (root.summaryKpis.co2TotalG / 1000 || 0).toFixed(2) },
-                            { label: qsTr("CO2 Savings"), value: (root.summaryKpis.co2SavingsG / 1000 || 0).toFixed(2) }
-                        ]
-                    },
-                    {
-                        title: qsTr("Efficiency (%)"),
-                        kpis: [
-                            { label: qsTr("Autarky Degree"), value: ((root.summaryKpis.autarkyRate || 0) * 100).toFixed(1) },
-                            { label: qsTr("Self-cons. Rate"), value: ((root.summaryKpis.selfConsumptionRate || 0) * 100).toFixed(1) }
-                        ]
-                    },
-                    {
-                        title: qsTr("HEMS Optimization"),
-                        kpis: [
-                            { label: qsTr("HP Optimization Rate"), value: ((root.summaryKpis.hpOptimizedInterventionRate || 0) * 100).toFixed(1), unit: "%" },
-                            { label: qsTr("HP Total Interventions"), value: (root.summaryKpis.hpTotalInterventionCount || 0).toString() },
-                            { label: qsTr("HP Optimized Interventions"), value: (root.summaryKpis.hpOptimizedInterventionCount || 0).toString() },
-                            { label: qsTr("EV Low-Price Rate"), value: ((root.summaryKpis.evLowPriceRate || 0) * 100).toFixed(1), unit: "%" },
-                            { label: qsTr("EV Low-Price Energy"), value: (root.summaryKpis.evLowPriceWh / 1000 || 0).toFixed(2), unit: " kWh" }
-                        ]
-                    }
-                ]
+                model: root.kpiStructure
                 delegate: ColumnLayout {
                     spacing: 10
                     Layout.fillWidth: true
@@ -381,7 +386,11 @@ Page {
                                     }
                                     Label {
                                         Layout.fillWidth: true
-                                        text: modelData.value + (modelData.unit || "")
+                                        text: {
+                                            var rawValue = root.summaryKpis[modelData.key] || 0
+                                            var processedValue = rawValue * modelData.factor
+                                            return processedValue.toFixed(modelData.precision) + modelData.unit
+                                        }
                                         font.pixelSize: 15
                                         font.bold: true
                                         color: Style.consolinnoDark
