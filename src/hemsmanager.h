@@ -92,6 +92,7 @@ public:
     Q_INVOKABLE int setDynamicElectricPricingConfiguration(const QUuid &electricThingId, const QVariantMap &data);
 
     Q_INVOKABLE int setBatteryConfiguration(const QUuid &batteryThingId, const QVariantMap &data);
+    Q_INVOKABLE int getAvailableHeatMeters();
 
     // read only
     Q_INVOKABLE int setChargingSessionConfiguration(const QUuid carThingId, const QUuid evChargerThingid, const QString started_at, const QString finished_at, const float initial_battery_energy, const int duration, const float energy_charged, const float energy_battery, const int battery_level, const QUuid sessionId, const int state, const int timestamp);
@@ -128,6 +129,7 @@ signals:
     void setHeatingElementConfigurationReply(int commandId, const QString &error);
     void setDynamicElectricPricingConfigurationReply(int commandId, const QString &error);
     void setBatteryConfigurationReply(int commandId, const QString &error);
+    void getAvailableHeatMetersReply(int commandId, const QVariantList &availableHeatMeters, const QString &error);
 
 private slots:
     Q_INVOKABLE void notificationReceived(const QVariantMap &data);
@@ -157,6 +159,7 @@ private slots:
     Q_INVOKABLE void setHeatingElementConfigurationResponse(int commandId, const QVariantMap &data);
     Q_INVOKABLE void setDynamicElectricPricingConfigurationResponse(int commandId, const QVariantMap &data);
     Q_INVOKABLE void setBatteryConfigurationResponse(int commandId, const QVariantMap &data);
+    Q_INVOKABLE void getAvailableHeatMetersResponse(int commandId, const QVariantMap &data);
 private:
     QPointer<Engine> m_engine = nullptr;
     bool m_fetchingData = false;
