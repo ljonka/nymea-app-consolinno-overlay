@@ -760,13 +760,16 @@ MainViewBase {
 
 
                 for (var i = 0; i < producers.count; i++) {
-                    maxCurrentPower = Math.max(maxCurrentPower, Math.abs(
+                    if (producers.get(i) && producers.get(i).stateByName("currentPower")) {
+                        maxCurrentPower = Math.max(maxCurrentPower, Math.abs(
                                                    producers.get(i).stateByName(
                                                        "currentPower").value))
+                    }
                 }
                 for (var i = 0; i < consumers.count; i++) {
                     if (consumers.get(i).thingClass.interfaces.indexOf(
-                                "smartmeterconsumer") >= 0) {
+                                "smartmeterconsumer") >= 0 && consumers.get(i).stateByName(
+                                     "currentPower")) {
                         maxCurrentPower = Math.max(
                                     maxCurrentPower,
                                     Math.abs(consumers.get(i).stateByName(
@@ -774,14 +777,18 @@ MainViewBase {
                     }
                 }
                 for (var i = 0; i < producers.count; i++) {
-                    maxCurrentPower = Math.max(maxCurrentPower, Math.abs(
+                     if (producers.get(i) && producers.get(i).stateByName("currentPower")) {
+                        maxCurrentPower = Math.max(maxCurrentPower, Math.abs(
                                                    producers.get(i).stateByName(
                                                        "currentPower").value))
+                     }
                 }
                 for (var i = 0; i < batteries.count; i++) {
-                    maxCurrentPower = Math.max(maxCurrentPower, Math.abs(
+                    if (batteries.get(i) && batteries.get(i).stateByName("currentPower")) {
+                        maxCurrentPower = Math.max(maxCurrentPower, Math.abs(
                                                    batteries.get(i).stateByName(
                                                        "currentPower").value))
+                    }
                 }
 
 
@@ -943,8 +950,9 @@ MainViewBase {
                         id: legendProducersRepeater
                         model: producers
                         delegate: LegendTile {
-                            visible: producers.get(index).id !== rootMeter.id
+                            visible: producers.get(index) ? producers.get(index).id !== rootMeter.id : false
                             isNotify: lsdChart.currentGridValueStateLPP &&
+                                      producers.get(index) &&
                                       (hemsManager.pvConfigurations.getPvConfiguration(producers.get(index).id) !== null ?
                                            hemsManager.pvConfigurations.getPvConfiguration(producers.get(index).id).controllableLocalSystem :
                                            false)
@@ -968,7 +976,7 @@ MainViewBase {
                         id: legendElectricsRepeater
                         model: electrics
                         delegate: LegendTile {
-                            visible: electrics.get(index).id !== rootMeter.id
+                            visible: electrics.get(index) ? electrics.get(index).id !== rootMeter.id : false
                             color: lsdChart.electricsColor
                             thing: electrics.get(index)
                             isElectric: true

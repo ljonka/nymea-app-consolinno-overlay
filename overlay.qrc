@@ -53,6 +53,7 @@
         <file>info/InfoTextInterface.qml</file>
         <file>optimization/HeatingConfigView.qml</file>
         <file>components/VerticalDivider.qml</file>
+        <file>components/HeatpumpPriceWidget.qml</file>
         <file>info/EnergyManagerInfo.qml</file>
         <file>components/ConsolinnoItemDelegate.qml</file>
         <file>thingconfiguration/CarInventory.qml</file>
