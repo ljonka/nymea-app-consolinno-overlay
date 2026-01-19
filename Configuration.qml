@@ -105,8 +105,8 @@ ConfigurationBase {
     readonly property color customPowerSockerColor: configID.consumedColor
 
     //custom Icons
-    readonly property string gridIcon: ""
-    readonly property string heatpumpIcon: ""
+    readonly property string gridIcon: "grid.svg"
+    readonly property string heatpumpIcon: "heatpump.svg"
     readonly property string heatingRodIcon: ""
     readonly property string energyIcon: ""
     readonly property string inverterIcon: ""
