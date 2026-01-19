@@ -16,6 +16,7 @@ MouseArea {
     property color negativeColor: root.color
     property Thing thing: null
     property bool isNotify: false
+    property var overridePower: null
     readonly property State currentPowerState: thing ? thing.stateByName("currentPower") : null
     readonly property State currentMarketPriceState: thing ? thing.stateByName("currentTotalCost") : null
     readonly property bool isProducer: thing && thing.thingClass.interfaces.indexOf("smartmeterproducer") >= 0
@@ -26,7 +27,7 @@ MouseArea {
     property bool isPowerConnection: false
     property bool isElectric: false
 
-    readonly property double currentPower: root.currentPowerState ? root.currentPowerState.value.toFixed(0) : 0
+    readonly property double currentPower: overridePower != null ? overridePower : (root.currentPowerState ? root.currentPowerState.value.toFixed(0) : 0)
     readonly property double currentMarketPrice: root.currentMarketPriceState ? root.currentMarketPriceState.value.toFixed(2) : 0
     readonly property State batteryLevelState: isBattery ? thing.stateByName("batteryLevel") : null
     readonly property color currentColor: currentPower <= 0 ? root.negativeColor : root.color
@@ -59,7 +60,7 @@ MouseArea {
 
     function getLabeltext(value) {
         let unit = ""
-        if (currentPowerState != null) {
+        if (currentPowerState != null || overridePower != null) {
             value = Math.abs(value)
             unit = " W"
             return value + unit // No need for localization here

@@ -48,6 +48,29 @@ MainViewBase {
                            || logsLoader.fetchingData
     property UserConfiguration userconfig
 
+    function getAssignedHeatMeterId(heatPumpThingId) {
+         if (hemsManager && hemsManager.heatingConfigurations) {
+            var config = hemsManager.heatingConfigurations.getHeatingConfiguration(heatPumpThingId)
+            if (config && config.heatMeterThingId.toString() !== "{00000000-0000-0000-0000-000000000000}" && config.heatMeterThingId.toString() !== "") {
+                return config.heatMeterThingId.toString().replace(/[{}]/g, "")
+            }
+         }
+         return ""
+    }
+
+    function isHiddenConsumer(thingId) {
+        if (!hemsManager || !hemsManager.heatingConfigurations) return false;
+        for (var i = 0; i < hemsManager.heatingConfigurations.count; i++) {
+            var config = hemsManager.heatingConfigurations.get(i);
+            var mId = config.heatMeterThingId.toString().replace(/[{}]/g, "");
+            var tId = thingId.toString().replace(/[{}]/g, "");
+            if (mId === tId && mId !== "" && mId !== "00000000-0000-0000-0000-000000000000") {
+                return true;
+            }
+        }
+        return false;
+    }
+
     function compareSemanticVersions(version1, version2) {
         // Returns 0 if version1 == version2
         // Returns 1 if version1 > version2
@@ -793,20 +816,25 @@ MainViewBase {
                 for (var i = 0; i < consumers.count; i++) {
                     var consumer = consumers.get(i)
                     var tile = legendConsumersRepeater.itemAt(i)
-                    if (consumer.thingClass.interfaces.indexOf(
-                                "smartmeterconsumer") >= 0) {
-                        drawAnimatedLine(
-                                    ctx, consumer.stateByName(
-                                        "currentPower").value, tile,
-                                    true, i - ((totalBottom - 1) / 2), maxCurrentPower,
-                                    false, xTranslate, yTranslate)
-                    } else {
-                        // draws line for consumers without power monitoring
-                        drawAnimatedLine(ctx, 0, tile, true,
-                                         i - ((totalBottom - 1) / 2),
-                                         maxCurrentPower, false, xTranslate,
-                                         yTranslate)
+
+                    if (isHiddenConsumer(consumer.id)) {
+                        continue
                     }
+
+                    var power = 0
+                    var assignedMeterId = getAssignedHeatMeterId(consumer.id)
+                    var assignedMeter = assignedMeterId !== "" ? engine.thingManager.things.getThing(assignedMeterId) : null
+
+                    if (assignedMeter && assignedMeter.stateByName("currentPower")) {
+                         power = assignedMeter.stateByName("currentPower").value
+                    } else if (consumer.thingClass.interfaces.indexOf("smartmeterconsumer") >= 0 && consumer.stateByName("currentPower")) {
+                         power = consumer.stateByName("currentPower").value
+                    }
+
+                    drawAnimatedLine(
+                                ctx, power, tile,
+                                true, i - ((totalBottom - 1) / 2), maxCurrentPower,
+                                false, xTranslate, yTranslate)
                 }
 
                 for (var i = 0; i < batteries.count; i++) {
@@ -1192,8 +1220,16 @@ MainViewBase {
                     delegate: Item {
                         id: consumerDelegate
                         property Thing thing: consumers.get(index)
+                        // Identify if this thing is a heat pump with an assigned meter
+                        property string assignedMeterId: getAssignedHeatMeterId(thing.id)
                         property AreaSeries consumerSeries: null
+
+                        // Identify if this thing is a meter that is hidden because it's assigned to a heat pump
+                        property bool isHidden: isHiddenConsumer(thing.id)
+
                         Component.onCompleted: {
+                            if (isHidden) return;
+
                             consumerSeries = chartView.createSeries(
                                         ChartView.SeriesTypeArea, thing.name,
                                         axisAngular, axisRadial)
@@ -1214,7 +1250,9 @@ MainViewBase {
                             consumerSeries.borderColor = consumerSeries.color
                         }
                         Component.onDestruction: {
-                            chartView.removeSeries(consumerSeries)
+                            if (consumerSeries) {
+                                chartView.removeSeries(consumerSeries)
+                            }
                         }
 
                         readonly property ThingPowerLogs logs: ThingPowerLogs {
@@ -1222,7 +1260,7 @@ MainViewBase {
                             engine: _engine
                             startTime: axisAngular.min
                             endTime: axisAngular.max
-                            thingId: consumerDelegate.thing.id
+                            thingId: assignedMeterId !== "" ? assignedMeterId : consumerDelegate.thing.id
                             loader: logsLoader
                             Component.onCompleted: fetchLogs()
                         }
@@ -1413,6 +1451,14 @@ MainViewBase {
                         model: consumers
 
                         delegate: LegendTile {
+                            // Logic to hide if assigned to a heat pump
+                            visible: !isHiddenConsumer(thing.id)
+
+                            // Logic to override power if this is a heat pump with an assigned meter
+                            property string assignedMeterId: getAssignedHeatMeterId(thing.id)
+                            property Thing assignedMeter: assignedMeterId !== "" ? engine.thingManager.things.getThing(assignedMeterId) : null
+                            overridePower: assignedMeter ? (assignedMeter.stateByName("currentPower") ? assignedMeter.stateByName("currentPower").value : null) : null
+
                             color: {
                                 if(thing.thingClass.interfaces.indexOf("heatpump") >= 0){
                                     return Configuration.heatpumpColor
