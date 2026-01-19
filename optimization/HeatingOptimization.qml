@@ -29,10 +29,33 @@ Page {
     QtObject {
         id: d
         property int pendingCallId: -1
+        property int heatMeterParamsId: -1
+        property var availableMeters: []
     }
+
+    Component.onCompleted: {
+        d.heatMeterParamsId = hemsManager.getAvailableHeatMeters()
+    }
+
 
     Connections {
         target: hemsManager
+
+        onGetAvailableHeatMetersReply: {
+            if (commandId === d.heatMeterParamsId) {
+                d.heatMeterParamsId = -1
+                if (error === "") {
+                    var meters = [{name: qsTr("No Heat Meter"), thingId: ""}]
+                    for (var i = 0; i < availableHeatMeters.length; i++) {
+                        meters.push(availableHeatMeters[i])
+                    }
+                    d.availableMeters = meters
+                } else {
+                    console.warn("Error fetching heat meters: " + error)
+                }
+            }
+        }
+
         onSetHeatingConfigurationReply: {
             if (commandId == d.pendingCallId) {
                 d.pendingCallId = -1
@@ -171,6 +194,39 @@ Page {
             }
         }
 
+        RowLayout {
+            Layout.fillWidth: true
+            visible: d.availableMeters.length > 0
+
+            Label {
+                Layout.fillWidth: true
+                text: qsTr("Heat Meter")
+            }
+
+            ConsolinnoDropdown {
+                id: heatMeterSelection
+                Layout.preferredWidth: 200
+                model: d.availableMeters
+                textRole: "name"
+
+                onModelChanged: {
+                    if (!heatingConfiguration || !model) {
+                         return;
+                    }
+                    var currentId = heatingConfiguration.heatMeterThingId.toString();
+                    currentIndex = 0
+                    for(var i=0; i<model.length; i++) {
+                        var mId = model[i].thingId.replace(/[{}]/g, "")
+                        var cId = currentId.replace(/[{}]/g, "")
+                        if(mId === cId && mId !== "") {
+                            currentIndex = i;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
         Item {
             // place holder
             Layout.fillHeight: true
@@ -263,6 +319,15 @@ Page {
                     newConfig.maxElectricalPower = +inputText;
                     newConfig.controllableLocalSystem = gridSupportControl.checked;
 
+                    if (d.availableMeters.length > 0 && heatMeterSelection.currentIndex >= 0 && heatMeterSelection.currentIndex < d.availableMeters.length) {
+                        var selectedId = d.availableMeters[heatMeterSelection.currentIndex].thingId;
+                        if (!selectedId || selectedId === "") {
+                             newConfig.heatMeterThingId = "";
+                        } else {
+                             newConfig.heatMeterThingId = selectedId;
+                        }
+                    }
+
                     // TODO this is terrible fix the enum mapping properly
                     // We just want to keep the current value
                     // Mapping: number -> enum name
@@ -312,4 +377,3 @@ Page {
 
     }
 }
-

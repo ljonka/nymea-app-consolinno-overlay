@@ -265,6 +265,7 @@ int HemsManager::setHeatingConfiguration(const QUuid &heatPumpThingId, const QVa
         dummyConfig.insert("priceThreshold", 0.30);
         dummyConfig.insert("optimizationMode", 0);
         dummyConfig.insert("controllableLocalSystem", false);
+        dummyConfig.insert("heatMeterThingId", QUuid());
 
         addOrUpdateHeatingConfiguration(dummyConfig);
         // and get the dummy Config
@@ -295,8 +296,32 @@ int HemsManager::setHeatingConfiguration(const QUuid &heatPumpThingId, const QVa
                         config.insert(metaObj->property(i).name(), data.value(metaObj->property(i).name()) );
                     }
                 }
-                qCDebug(dcHems()) << "Data value: " << data.value(metaObj->property(i).name());
-                config.insert(metaObj->property(i).name(), data.value(metaObj->property(i).name()) );
+                // Convert heatMeterThingId from QString to QUuid
+                else if (strcmp(metaObj->property(i).name(), "heatMeterThingId") == 0) {
+                    QVariant value = data.value(metaObj->property(i).name());
+                    if (value.type() == QVariant::String) {
+                        QString strValue = value.toString();
+                        // If empty string, skip this field entirely (don't send to backend)
+                        if (strValue.isEmpty()) {
+                            qCDebug(dcHems()) << "Skipping heatMeterThingId (No Heat Meter selected)";
+                            // Don't insert anything - field will be omitted from request
+                        } else {
+                            // Ensure braces for QUuid parsing
+                            if (!strValue.startsWith("{")) {
+                                strValue = "{" + strValue + "}";
+                            }
+                            QUuid uuid(strValue);
+                            qCDebug(dcHems()) << "Converting heatMeterThingId from QString to QUuid:" << uuid;
+                            config.insert(metaObj->property(i).name(), uuid);
+                        }
+                    } else if (!value.isNull()) {
+                        config.insert(metaObj->property(i).name(), value);
+                    }
+                }
+                else {
+                    qCDebug(dcHems()) << "Data value: " << data.value(metaObj->property(i).name());
+                    config.insert(metaObj->property(i).name(), data.value(metaObj->property(i).name()) );
+                }
             }else{
                 qCDebug(dcHems())<< "type: " << metaObj->property(i).type() << "value: " << metaObj->property(i).read(configuration);
                 config.insert(metaObj->property(i).name(), metaObj->property(i).read(configuration) );
@@ -307,6 +332,7 @@ int HemsManager::setHeatingConfiguration(const QUuid &heatPumpThingId, const QVa
     params.insert("heatingConfiguration", config);
     qCDebug(dcHems()) << "Set heating configuration" << params;
     qCInfo(dcHems()) << "Set heating configuration" << QJsonDocument(QJsonObject::fromVariantMap(params)).toJson(QJsonDocument::Compact);
+    qCWarning(dcHems()) << "heatMeterThingId in config:" << config.value("heatMeterThingId") << "Type:" << config.value("heatMeterThingId").typeName();
 
     return m_engine->jsonRpcClient()->sendCommand("Hems.SetHeatingConfiguration", params, this, "setHeatingConfigurationResponse");
 }
@@ -587,6 +613,16 @@ int HemsManager::setBatteryConfiguration(const QUuid &batteryThingId, const QVar
     return m_engine->jsonRpcClient()->sendCommand("Hems.SetBatteryConfiguration", params, this, "setBatteryConfigurationResponse");
 }
 
+int HemsManager::getAvailableHeatMeters()
+{
+    if (!m_engine)
+        return -1;
+    
+    // Spec says method: "GetAvailableHeatMeters". 
+    // If it requires namespace it would be Hems.GetAvailableHeatMeters.
+    return m_engine->jsonRpcClient()->sendCommand("Hems.GetAvailableHeatMeters", QVariantMap(), this, "getAvailableHeatMetersResponse");
+}
+
 // notification Handling -> atm mostly for added, removed, changed
 void HemsManager::notificationReceived(const QVariantMap &data)
 {
@@ -824,6 +860,9 @@ void HemsManager::setHousholdPhaseLimitResponse(int commandId, const QVariantMap
 void HemsManager::setHeatingConfigurationResponse(int commandId, const QVariantMap &data)
 {
     qCDebug(dcHems()) << "Set heating configuration response" << data.value("hemsError").toString();
+    if (data.value("hemsError").toString() == "HemsErrorNoError") {
+        m_engine->jsonRpcClient()->sendCommand("Hems.GetHeatingConfigurations", QVariantMap(), this, "getHeatingConfigurationsResponse");
+    }
     emit setHeatingConfigurationReply(commandId, data.value("hemsError").toString());
 }
 
@@ -837,6 +876,19 @@ void HemsManager::setBatteryConfigurationResponse(int commandId, const QVariantM
 {
     qCDebug(dcHems()) << "Set battery configuration response" << data.value("hemsError").toString();
     emit setBatteryConfigurationReply(commandId, data.value("hemsError").toString());
+}
+
+void HemsManager::getAvailableHeatMetersResponse(int commandId, const QVariantMap &data)
+{
+    qCDebug(dcHems()) << "Available heat meters response" << data;
+    QVariantList meters = data.value("availableHeatMeters").toList();
+    QString error;
+    if (data.contains("error")) {
+        error = data.value("error").toString();
+    } else if (data.contains("hemsError")) {
+        error = data.value("hemsError").toString();
+    }
+    emit getAvailableHeatMetersReply(commandId, meters, error);
 }
 
 
@@ -1211,4 +1263,3 @@ void HemsManager::updateAvailableUsecases(const QStringList &useCasesList)
         emit availableUseCasesChanged(m_availableUseCases);
     }
 }
-
