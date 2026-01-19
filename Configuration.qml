@@ -161,7 +161,7 @@ ConfigurationBase {
     //////////////////////////////////////////////////////////////////////////////////////
     // Additional MainViews
     property var additionalMainViews: ListModel {
-        ListElement { name: "consolinno"; source: "ConsolinnoView"; displayName: qsTr("Consolinno") ; icon: "leaf" }
+        ListElement { name: "consolinno"; source: "ConsolinnoView"; displayName: qsTr("Consolinno") ; icon: "../ui/images/leaf" }
     }
 
     // Main views filter: Only those main views are enabled

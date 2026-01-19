@@ -751,8 +751,9 @@ MainViewBase {
                 ctx.fillStyle = Style.foregroundColor
 
 
-                lsdChart.currentGridValueState = gridSupport.get(0).stateByName("isLpcActive") !== null ? gridSupport.get(0).stateByName("isLpcActive").value : false
-                lsdChart.currentGridValueStateLPP = gridSupport.get(0).stateByName("isLppActive") !== null ? gridSupport.get(0).stateByName("isLppActive").value : false
+                var firstGridSupport = gridSupport.count > 0 ? gridSupport.get(0) : null
+                lsdChart.currentGridValueState = (firstGridSupport && firstGridSupport.stateByName("isLpcActive") !== null) ? firstGridSupport.stateByName("isLpcActive").value : false
+                lsdChart.currentGridValueStateLPP = (firstGridSupport && firstGridSupport.stateByName("isLppActive") !== null) ? firstGridSupport.stateByName("isLppActive").value : false
 
                 var maxCurrentPower = rootMeter ? Math.abs(
                                                       rootMeter.stateByName(
