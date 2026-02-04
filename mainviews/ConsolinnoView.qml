@@ -59,16 +59,17 @@ MainViewBase {
     }
 
     function isHiddenConsumer(thingId) {
-        if (!hemsManager || !hemsManager.heatingConfigurations) return false;
-        for (var i = 0; i < hemsManager.heatingConfigurations.count; i++) {
-            var config = hemsManager.heatingConfigurations.get(i);
-            var mId = config.heatMeterThingId.toString().replace(/[{}]/g, "");
-            var tId = thingId.toString().replace(/[{}]/g, "");
-            if (mId === tId && mId !== "" && mId !== "00000000-0000-0000-0000-000000000000") {
-                return true;
+        var thing = engine.thingManager.things.getThing(thingId)
+        if (!thing)
+            return false
+
+        if (thing.thingClass.interfaces.indexOf("hideable") >= 0) {
+            var hiddenState = thing.stateByName("hidden")
+            if (hiddenState && hiddenState.value === true) {
+                return true
             }
         }
-        return false;
+        return false
     }
 
     function compareSemanticVersions(version1, version2) {
